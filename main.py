@@ -45,12 +45,24 @@ create_tables()
 
 def add_data(window_title, table_name, fields):
     def submit():
-        values = [entry.get() for entry in entries]
+        # Отримання значень з віджетів
+        values = []
+        for entry in entries:
+            if isinstance(entry, tk.Entry):
+                values.append(entry.get())
+            elif isinstance(entry, tk.IntVar) or isinstance(entry, tk.StringVar):
+                values.append(entry.get())
+
+        # Створення запиту SQL з плейсхолдерами
         placeholders = ', '.join('?' * len(values))
-        c.execute(f'INSERT INTO {table_name} ({", ".join(fields.keys())}) VALUES ({placeholders})', values)
+        fields_names = list(fields.keys())
+        sql_query = f'INSERT INTO {table_name} ({", ".join(fields_names)}) VALUES ({placeholders})'
+        c.execute(sql_query, values)
+
         if table_name == "Students":
             # Оновлення зайнятих місць у кімнаті
-            room_number = values[fields["RoomNumber"]]
+            room_number_index = fields_names.index("RoomNumber")
+            room_number = values[room_number_index]
             c.execute('UPDATE Rooms SET OccupiedBeds = OccupiedBeds + 1 WHERE RoomNumber = ?', (room_number,))
         conn.commit()
         messagebox.showinfo("Success", "Data added successfully!")
@@ -65,21 +77,25 @@ def add_data(window_title, table_name, fields):
     entries = []
     for field, label in fields.items():
         tk.Label(top, text=label).pack()
-        entry = tk.Entry(top)
-        entry.pack()
-        entries.append(entry)
-
-    if table_name == "Students":
-        tk.Label(top, text="Room Number").pack()
-        room_var = tk.IntVar(top)
-        c.execute('SELECT RoomNumber FROM Rooms WHERE OccupiedBeds < BedCount')
-        available_rooms = [room[0] for room in c.fetchall()]
-        if available_rooms:
-            tk.OptionMenu(top, room_var, *available_rooms).pack()
-            entries.append(room_var)  # Оновлено тут
+        if field == "RoomNumber":
+            room_var = tk.IntVar(top)
+            c.execute('SELECT RoomNumber FROM Rooms WHERE OccupiedBeds < BedCount')
+            available_rooms = [room[0] for room in c.fetchall()]
+            if available_rooms:
+                tk.OptionMenu(top, room_var, *available_rooms).pack()
+                entries.append(room_var)
+            else:
+                messagebox.showerror("Error", "No rooms available!")
+                return
+        elif field == "Gender":
+            gender_var = tk.StringVar(top)
+            gender_var.set("Male")  # Значення за замовчуванням
+            tk.OptionMenu(top, gender_var, "Male", "Female").pack()
+            entries.append(gender_var)
         else:
-            messagebox.showerror("Error", "No rooms available!")
-            return
+            entry = tk.Entry(top)
+            entry.pack()
+            entries.append(entry)
 
     submit_btn = tk.Button(top, text="Submit", command=submit)
     submit_btn.pack()
